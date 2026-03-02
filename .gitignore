@@ -1,0 +1,41 @@
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.Python
+
+# Builds / dist
+build/
+dist/
+*.log
+
+# Coverage / caches
+.coverage
+.cache/
+.mypy_cache/
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnp.*
+.next/
+out/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Databases
+*.sqlite3
+*.db

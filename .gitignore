@@ -39,3 +39,6 @@ out/
 # Databases
 *.sqlite3
 *.db
+
+# Storage
+storage/

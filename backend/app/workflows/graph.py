@@ -192,7 +192,60 @@ def tool_executor(state: RunState) -> RunState:
         return {**state, "status": "error", "message": f"tool_failed: {exc}", "tool_results": tool_results}
 
 def validator(state: RunState) -> RunState:
-    # Placeholder validator; could add content checks later.
+    # Skip validation if we are already in an error state
+    if state.get("status") == "error":
+        return state
+
+    tool_results = state.get("tool_results", [])
+    if not tool_results:
+        return state
+
+    last_result = tool_results[-1]
+    tool_name = last_result.get("tool", "unknown")
+    
+    # Check if there's already a hard tool error
+    if "error" in last_result:
+        return state
+
+    try:
+        llm = _make_llm()
+        if llm:
+            validation_prompt = ChatPromptTemplate.from_messages([
+                (
+                    "system", 
+                    "You are a strict data validation agent in a workflow. Check if the output of the last tool looks reasonable, completed, and not defective. "
+                    "For example, if it's an empty text extraction, an issue with the file, or an obvious error message hidden inside success output—flag it. "
+                    "If the output looks OK and functional, reply ONLY with the exact word 'VALID'. "
+                    "If the output looks defective or empty, reply with a short 1-sentence explanation of what is wrong."
+                ),
+                (
+                    "human", 
+                    "User prompt context: {prompt}\n\nTool used: {tool}\nRaw Output: {output}"
+                ),
+            ])
+            chain = validation_prompt | llm | StrOutputParser()
+            
+            # Truncate output to avoid massive context for a simple check
+            output_str = str(last_result.get("output", ""))[:2000]
+            
+            response = chain.invoke({
+                "prompt": state.get("prompt", ""),
+                "tool": tool_name, 
+                "output": output_str
+            }).strip()
+            
+            print(f"[validator] Tool: {tool_name} | Eval: {response}")
+            
+            # If the LLM doesn't explicitly return VALID, we treat it as an error
+            if "VALID" not in response.upper() or len(response) > 10:
+                return {
+                    **state,
+                    "status": "error",
+                    "message": f"Validation failed for '{tool_name}': {response}"
+                }
+    except Exception as exc:
+        print(f"[validator] LLM check failed (falling back to accepting): {exc}")
+
     return state
 
 

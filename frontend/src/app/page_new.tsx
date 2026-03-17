@@ -35,6 +35,8 @@ export default function Home() {
         e.preventDefault();
         if (!prompt.trim() || isStreaming) return;
 
+        const currentPrompt = prompt;
+        setPrompt("");
         setIsStreaming(true);
         setEvents([]);
 
@@ -42,7 +44,7 @@ export default function Home() {
             const response = await fetch("http://localhost:8000/api/runs/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt, file_refs: [] }),
+                body: JSON.stringify({ prompt: currentPrompt, file_refs: [] }),
             });
 
             if (!response.body) throw new Error("No response body");

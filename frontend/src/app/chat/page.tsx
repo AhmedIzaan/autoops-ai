@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight } from "lucide-react";
+import { Send, Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 type RunState = {
   run_id?: string;
@@ -12,6 +13,7 @@ type RunState = {
   tool_results?: Array<any>;
   status?: string;
   message?: string;
+  summary?: string;
 };
 
 type StreamEvent = {
@@ -23,6 +25,10 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [fileRefs, setFileRefs] = useState<{ name: string; path: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedRaw, setExpandedRaw] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,12 +43,13 @@ export default function Home() {
 
     setIsStreaming(true);
     setEvents([]);
+    setError(null);
 
     try {
       const response = await fetch("http://localhost:8000/api/runs/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, file_refs: [] }),
+        body: JSON.stringify({ prompt, file_refs: fileRefs.map((f) => f.path) }),
       });
 
       if (!response.body) throw new Error("No response body");
@@ -77,8 +84,35 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Stream failed:", error);
+      setError("Streaming failed. Check backend and try again.");
       setIsStreaming(false);
     }
+  };
+
+  const handleFileUpload = async (file?: File) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("upload", file);
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await fetch("http://localhost:8000/api/files", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const data = await res.json();
+      setFileRefs((prev) => [...prev, { name: data.filename, path: data.path }]);
+    } catch (err) {
+      console.error(err);
+      setError("Upload failed. Check backend or file size/type.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = (path: string) => {
+    setFileRefs((prev) => prev.filter((f) => f.path !== path));
   };
 
   const currentState = events.length > 0 ? events[events.length - 1].state : null;
@@ -131,7 +165,7 @@ export default function Home() {
                   </h3>
                   <div className="h-px flex-1 bg-gradient-to-r from-white/10 via-transparent to-transparent" />
                 </div>
-                
+
                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-white/10 before:via-white/10 before:to-transparent">
                   <AnimatePresence>
                     {currentPlan.map((step, idx) => {
@@ -144,9 +178,8 @@ export default function Home() {
                         <div key={idx} className="relative flex items-start md:justify-between group">
                           {/* Timeline dot */}
                           <div className="absolute left-6 -translate-x-1/2 md:left-1/2 flex items-center justify-center mt-6">
-                            <div className={`w-3 h-3 rounded-full border-2 bg-[#0A0A0A] z-10 transition-colors duration-500 ${
-                              isCompleted ? "border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" : isActive ? "border-indigo-400 bg-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "border-neutral-700"
-                            }`} />
+                            <div className={`w-3 h-3 rounded-full border-2 bg-[#0A0A0A] z-10 transition-colors duration-500 ${isCompleted ? "border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" : isActive ? "border-indigo-400 bg-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "border-neutral-700"
+                              }`} />
                           </div>
 
                           {/* Card */}
@@ -154,15 +187,13 @@ export default function Home() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.15, type: "spring", stiffness: 100 }}
-                            className={`w-full md:w-[calc(50%-2.5rem)] ml-14 md:ml-0 p-5 rounded-2xl border transition-all duration-500 relative backdrop-blur-sm ${
-                              idx % 2 === 0 ? "md:mr-auto" : "md:ml-auto"
-                            } ${
-                              isActive
+                            className={`w-full md:w-[calc(50%-2.5rem)] ml-14 md:ml-0 p-5 rounded-2xl border transition-all duration-500 relative backdrop-blur-sm ${idx % 2 === 0 ? "md:mr-auto" : "md:ml-auto"
+                              } ${isActive
                                 ? "bg-indigo-500/5 border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.05)]"
                                 : isCompleted
-                                ? "bg-white/[0.02] border-white/5"
-                                : "bg-transparent border-white/5 opacity-40 grayscale"
-                            }`}
+                                  ? "bg-white/[0.02] border-white/5"
+                                  : "bg-transparent border-white/5 opacity-40 grayscale"
+                              }`}
                           >
                             <div className="flex items-center space-x-3 mb-2">
                               {isCompleted ? (
@@ -176,7 +207,7 @@ export default function Home() {
                                 {step.tool}
                               </span>
                             </div>
-                            
+
                             {step.args && (
                               <div className="text-[13px] font-mono text-neutral-400 mt-2 bg-black/30 p-2.5 rounded-lg border border-white/5">
                                 {Object.entries(step.args).map(([k, v]) => (
@@ -192,10 +223,18 @@ export default function Home() {
                                 animate={{ height: "auto", opacity: 1 }}
                                 className="mt-4 pt-4 border-t border-white/5 flex flex-col space-y-2 overflow-hidden"
                               >
-                                <span className="text-[10px] uppercase tracking-widest font-semibold text-neutral-500">Output</span>
-                                <div className="text-xs font-mono p-3 bg-black/40 rounded-xl overflow-x-auto border border-emerald-500/10 text-emerald-200/80 scrollbar-thin scrollbar-thumb-white/10">
-                                  <pre>{JSON.stringify(result.output || result.error, null, 2)}</pre>
-                                </div>
+                                <button
+                                  onClick={() => setExpandedRaw(expandedRaw === idx ? null : idx)}
+                                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-semibold text-neutral-500 hover:text-neutral-300 transition-colors w-fit"
+                                >
+                                  {expandedRaw === idx ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                  <span>Raw Output</span>
+                                </button>
+                                {expandedRaw === idx && (
+                                  <div className="text-xs font-mono p-3 bg-black/40 rounded-xl overflow-x-auto border border-emerald-500/10 text-emerald-200/80 scrollbar-thin scrollbar-thumb-white/10">
+                                    <pre>{JSON.stringify(result.output || result.error, null, 2)}</pre>
+                                  </div>
+                                )}
                               </motion.div>
                             )}
                           </motion.div>
@@ -204,23 +243,36 @@ export default function Home() {
                     })}
                   </AnimatePresence>
                 </div>
-                
+
                 {/* Final status */}
                 {currentState?.status === "completed" && (
-                   <motion.div
-                   initial={{ opacity: 0, scale: 0.95 }}
-                   animate={{ opacity: 1, scale: 1 }}
-                   transition={{ delay: 0.5 }}
-                   className="p-6 mt-12 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl flex items-center space-x-4 shadow-[0_0_40px_rgba(16,185,129,0.05)] mx-auto max-w-md"
-                 >
-                   <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                     <Sparkles className="w-5 h-5 text-emerald-400" />
-                   </div>
-                   <div>
-                     <p className="font-semibold text-emerald-300">Automated Workflow Complete</p>
-                     {currentState.message && <p className="text-sm opacity-80 mt-1 text-emerald-200/60 font-medium">{currentState.message}</p>}
-                   </div>
-                 </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, type: "spring", stiffness: 80 }}
+                    className="mt-10 space-y-4"
+                  >
+                    {/* Summary card */}
+                    {currentState.summary && (
+                      <div className="p-6 border border-indigo-500/20 bg-indigo-500/5 rounded-2xl shadow-[0_0_40px_rgba(99,102,241,0.05)]">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-8 h-8 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                            <Sparkles className="w-4 h-4 text-indigo-400" />
+                          </div>
+                          <p className="font-semibold text-indigo-300 text-sm uppercase tracking-widest">Summary</p>
+                        </div>
+                        <div className="text-sm text-neutral-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-headings:text-indigo-200 prose-strong:text-white prose-li:marker:text-indigo-400 prose-p:text-neutral-200 prose-ul:text-neutral-200">
+                          <ReactMarkdown>{currentState.summary}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Completed banner */}
+                    <div className="p-4 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl flex items-center space-x-3 shadow-[0_0_30px_rgba(16,185,129,0.04)]">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <p className="text-sm font-medium text-emerald-300">Workflow completed successfully</p>
+                    </div>
+                  </motion.div>
                 )}
               </div>
             )}
@@ -230,42 +282,76 @@ export default function Home() {
 
       {/* Input Area */}
       <footer className="p-6 bg-gradient-to-t from-[#0A0A0A] to-[#0A0A0A]/80 border-t border-white/5 shrink-0 backdrop-blur-xl z-20">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative group">
-          <div className="flex items-end bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-indigo-500/50 rounded-3xl p-2 transition-all shadow-2xl">
-            <button
-              type="button"
-              className="p-3 mb-1 text-neutral-500 hover:text-white transition-colors rounded-xl hover:bg-white/5"
-              title="Upload file"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="E.g., Generate a sales report, create sub-tasks for the team, and draft an update email..."
-              className="flex-1 bg-transparent border-none outline-none text-white px-3 py-4 placeholder:text-neutral-600 resize-none min-h-[60px] max-h-[200px]"
-              rows={1}
-              disabled={isStreaming}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-            />
-            <button
-              type="submit"
-              disabled={!prompt.trim() || isStreaming}
-              className="p-3 mb-1 m-1 bg-white text-black hover:bg-neutral-200 rounded-xl transition-all disabled:opacity-30 disabled:hover:bg-white flex items-center justify-center shrink-0 shadow-sm"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
-        <p className="text-center text-[11px] text-neutral-600 mt-4 font-medium tracking-wide">
-          AutoOps AI operates via LangGraph workflows. Review tasks before executing locally.
-        </p>
+        <div className="max-w-4xl mx-auto space-y-3">
+          {error && (
+            <div className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl">
+              {error}
+            </div>
+          )}
+
+          {fileRefs.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs text-neutral-300">
+              {fileRefs.map((f) => (
+                <span key={f.path} className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                  <FileLabel name={f.name} />
+                  <button
+                    type="button"
+                    onClick={() => removeFile(f.path)}
+                    className="text-neutral-500 hover:text-white"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="relative group">
+            <div className="flex items-end bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-indigo-500/50 rounded-3xl p-2 transition-all shadow-2xl">
+              <label className="p-3 mb-1 text-neutral-500 hover:text-white transition-colors rounded-xl hover:bg-white/5 cursor-pointer flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                <span className="text-xs hidden sm:block">{uploading ? "Uploading..." : "Upload"}</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files?.[0])}
+                  disabled={uploading || isStreaming}
+                />
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="E.g., Generate a sales report, create sub-tasks for the team, and draft an update email..."
+                className="flex-1 bg-transparent border-none outline-none text-white px-3 py-4 placeholder:text-neutral-600 resize-none min-h-[60px] max-h-[200px]"
+                rows={1}
+                disabled={isStreaming}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!prompt.trim() || isStreaming}
+                className="p-3 mb-1 m-1 bg-white text-black hover:bg-neutral-200 rounded-xl transition-all disabled:opacity-30 disabled:hover:bg-white flex items-center justify-center shrink-0 shadow-sm"
+              >
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          </form>
+          <p className="text-center text-[11px] text-neutral-600 mt-1 font-medium tracking-wide">
+            AutoOps AI operates via LangGraph workflows. Review tasks before executing locally.
+          </p>
+        </div>
       </footer>
     </div>
   );
+}
+
+function FileLabel({ name }: { name: string }) {
+  const short = name.length > 28 ? `${name.slice(0, 20)}…${name.slice(-6)}` : name;
+  return <span className="font-mono">{short}</span>;
 }

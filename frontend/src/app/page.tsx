@@ -1,10 +1,114 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, Sparkles, FileText, Mail, BarChart3, ListChecks } from "lucide-react";
 
+// ─── Animated terminal data ───────────────────────────────────────────────────
+type LogLine = {
+    text: string;
+    color: string;
+    delay: number; // ms after previous line finishes
+};
+
+const WORKFLOW_LINES: LogLine[] = [
+    { text: '> user: "Generate weekly sales pipeline report, then email the team"', color: "text-neutral-300", delay: 0 },
+    { text: "⚙  Planner Node  →  identifying execution path...", color: "text-indigo-400", delay: 900 },
+    { text: "   └─ step 1 : csv_analyzer   { path: 'sales_q1.csv' }", color: "text-neutral-500", delay: 600 },
+    { text: "   └─ step 2 : report_generator { title: 'Q1 Sales Report' }", color: "text-neutral-500", delay: 300 },
+    { text: "   └─ step 3 : email_draft    { to: 'team@acme.com' }", color: "text-neutral-500", delay: 300 },
+    { text: "▶  Executing  csv_analyzer...", color: "text-amber-400", delay: 700 },
+    { text: "   rows: 1,240  |  cols: 8  |  numeric cols: 5", color: "text-neutral-500", delay: 500 },
+    { text: "   insight: «Revenue up 18% MoM; 3 outlier deals flagged»", color: "text-emerald-300", delay: 400 },
+    { text: "✔  csv_analyzer  completed", color: "text-emerald-400", delay: 500 },
+    { text: "▶  Executing  report_generator...", color: "text-amber-400", delay: 600 },
+    { text: "   generated 2-page markdown report with 6 highlights", color: "text-neutral-500", delay: 700 },
+    { text: "✔  report_generator  completed", color: "text-emerald-400", delay: 400 },
+    { text: "▶  Executing  email_draft...", color: "text-amber-400", delay: 600 },
+    { text: "   subject: \"Q1 Sales Recap – action required\"", color: "text-neutral-500", delay: 500 },
+    { text: "✔  email_draft  completed", color: "text-emerald-400", delay: 400 },
+    { text: "✦  Workflow completed  ·  3 steps  ·  2.4 s", color: "text-indigo-300", delay: 800 },
+];
+
+const CHAR_DELAY = 22; // ms per character
+
+function AnimatedTerminal() {
+    const [visibleLines, setVisibleLines] = useState<{ text: string; color: string; partial: string; done: boolean }[]>([]);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const cycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function runCycle() {
+            setVisibleLines([]);
+            await sleep(600);
+
+            for (let i = 0; i < WORKFLOW_LINES.length; i++) {
+                if (cancelled) return;
+                const { text, color, delay } = WORKFLOW_LINES[i];
+                await sleep(delay);
+                if (cancelled) return;
+
+                // Append a new blank line
+                setVisibleLines(prev => [...prev, { text, color, partial: "", done: false }]);
+
+                // Type it out character by character
+                for (let c = 1; c <= text.length; c++) {
+                    if (cancelled) return;
+                    await sleep(CHAR_DELAY);
+                    setVisibleLines(prev => {
+                        const next = [...prev];
+                        next[next.length - 1] = { ...next[next.length - 1], partial: text.slice(0, c) };
+                        return next;
+                    });
+                }
+
+                // Mark done (removes cursor)
+                setVisibleLines(prev => {
+                    const next = [...prev];
+                    next[next.length - 1] = { ...next[next.length - 1], done: true };
+                    return next;
+                });
+
+                // Scroll to bottom
+                if (containerRef.current) {
+                    containerRef.current.scrollTop = containerRef.current.scrollHeight;
+                }
+            }
+
+            // Pause before looping
+            await sleep(2800);
+            if (!cancelled) runCycle();
+        }
+
+        runCycle();
+        return () => { cancelled = true; if (cycleRef.current) clearTimeout(cycleRef.current); };
+    }, []);
+
+    return (
+        <div
+            ref={containerRef}
+            className="p-6 font-mono text-[13px] space-y-2 text-neutral-400 bg-black/40 min-h-[220px] max-h-[280px] overflow-hidden"
+        >
+            {visibleLines.map((line, idx) => (
+                <p key={idx} className={line.color}>
+                    {line.partial}
+                    {!line.done && (
+                        <span className="inline-block w-[2px] h-[1em] bg-current align-middle ml-0.5 animate-pulse" />
+                    )}
+                </p>
+            ))}
+        </div>
+    );
+}
+
+function sleep(ms: number) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
     const features = [
         {
@@ -108,7 +212,7 @@ export default function LandingPage() {
                     </motion.div>
                 </section>
 
-                {/* Console Preview / Demo Section */}
+                {/* Animated Console Demo */}
                 <motion.section
                     initial={{ opacity: 0, y: 40 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -117,6 +221,7 @@ export default function LandingPage() {
                     className="max-w-4xl mx-auto mt-24 px-6 relative z-10"
                 >
                     <div className="rounded-2xl border border-white/10 overflow-hidden bg-[#0A0A0A] shadow-[0_0_50px_rgba(99,102,241,0.1)]">
+                        {/* Terminal title bar */}
                         <div className="flex items-center px-4 py-3 border-b border-white/5 bg-white/[0.02]">
                             <div className="flex space-x-2">
                                 <div className="w-3 h-3 rounded-full bg-rose-500/80" />
@@ -124,15 +229,13 @@ export default function LandingPage() {
                                 <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
                             </div>
                             <div className="ml-4 text-xs font-mono text-neutral-500">agent-workflow.log</div>
+                            <div className="ml-auto flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">live</span>
+                            </div>
                         </div>
-                        <div className="p-6 font-mono text-sm space-y-4 text-neutral-400 bg-black/40">
-                            <p><span className="text-emerald-400">→</span> Analyzing user intent: <span className="text-white">"Generate weekly sales pipeline report..."</span></p>
-                            <p><span className="text-indigo-400">⚙</span> Planner Node <span className="text-neutral-500">identifying multi-step execution path</span></p>
-                            <p><span className="text-neutral-500">  └─ Step 1: csv_analyzer</span></p>
-                            <p><span className="text-neutral-500">  └─ Step 2: report_generator</span></p>
-                            <p><span className="text-neutral-500">  └─ Step 3: email_draft</span></p>
-                            <p className="animate-pulse text-amber-300">Executing sequence...</p>
-                        </div>
+                        {/* Animated body */}
+                        <AnimatedTerminal />
                     </div>
                 </motion.section>
 
@@ -171,3 +274,4 @@ export default function LandingPage() {
         </div>
     );
 }
+

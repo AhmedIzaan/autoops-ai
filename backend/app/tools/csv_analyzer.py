@@ -12,5 +12,5 @@ def summarize_csv(file_path: str) -> dict[str, object]:
         "columns": list(df.columns),
     }
     numeric_cols: Sequence[str] = df.select_dtypes(include="number").columns
-    summary["numeric_summary"] = df[numeric_cols].describe().to_dict() if numeric_cols else {}
+    summary["numeric_summary"] = df[numeric_cols].describe().to_dict() if len(numeric_cols) > 0 else {}
     return summary

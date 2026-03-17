@@ -8,8 +8,11 @@ class Settings(BaseSettings):
     env: str = Field(default="local", description="Deployment environment label")
     db_url: str = Field(
         default="sqlite+aiosqlite:///./autoops.db",
-        alias="DATABASE_URL",
         description="Database URL (async driver)",
+    )
+    storage_dir: str = Field(
+        default="./storage/uploads",
+        description="Directory for storing uploaded files and generated artifacts",
     )
     gemini_api_key: str | None = Field(default=None, description="API key for Gemini")
     allowed_origins: list[str] = Field(default_factory=lambda: ["*"], description="CORS allowlist")

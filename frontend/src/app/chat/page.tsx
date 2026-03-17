@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import Link from "next/link";
 
 type RunState = {
   run_id?: string;
@@ -125,9 +126,18 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-[#0A0A0A] text-white font-sans overflow-hidden selection:bg-indigo-500/30">
       {/* Header */}
-      <header className="flex items-center px-6 py-4 border-b border-white/5 shrink-0 bg-white/[0.02]">
-        <Sparkles className="w-5 h-5 text-indigo-400 mr-2" />
-        <h1 className="text-lg font-medium tracking-tight">AutoOps AI</h1>
+      <header className="flex items-center px-6 py-4 border-b border-white/5 shrink-0 bg-white/[0.02] gap-3">
+        <Link
+          href="/"
+          className="p-1.5 rounded-lg text-neutral-500 hover:text-white hover:bg-white/5 transition-all"
+          title="Back to home"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <Sparkles className="w-5 h-5 text-indigo-400" />
+          <h1 className="text-lg font-medium tracking-tight">AutoOps AI</h1>
+        </Link>
         <div className="ml-auto text-xs font-mono text-neutral-400 bg-white/5 px-2.5 py-1 rounded-md border border-white/10 uppercase tracking-widest">
           {currentState?.status || "Ready"}
         </div>

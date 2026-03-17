@@ -210,23 +210,35 @@ def validator(state: RunState) -> RunState:
     try:
         llm = _make_llm()
         if llm:
+            # Build a clean copy of output, stripping large/raw debug fields
+            # that are intentionally truncated (e.g. raw_extract in pdf_summarizer)
+            raw_output = last_result.get("output", "")
+            if isinstance(raw_output, dict):
+                SKIP_KEYS = {"raw_extract"}  # known large debug-only fields
+                clean_output = {k: v for k, v in raw_output.items() if k not in SKIP_KEYS}
+            else:
+                clean_output = raw_output
+
+            output_str = str(clean_output)[:2000]
+
             validation_prompt = ChatPromptTemplate.from_messages([
                 (
-                    "system", 
-                    "You are a strict data validation agent in a workflow. Check if the output of the last tool looks reasonable, completed, and not defective. "
-                    "For example, if it's an empty text extraction, an issue with the file, or an obvious error message hidden inside success output—flag it. "
-                    "If the output looks OK and functional, reply ONLY with the exact word 'VALID'. "
-                    "If the output looks defective or empty, reply with a short 1-sentence explanation of what is wrong."
+                    "system",
+                    "You are a data validation agent in an automated workflow. "
+                    "Given the output of a tool, decide if it is valid and useful. "
+                    "Rules:\n"
+                    "- A 'summary' or 'ai_insights' field with real content means the tool succeeded.\n"
+                    "- Fields named 'raw_extract' are intentionally truncated — ignore them entirely.\n"
+                    "- Only flag as invalid if the core output is empty, missing, or contains an obvious error message.\n"
+                    "If valid, reply ONLY with the single word: VALID\n"
+                    "If invalid, reply with one short sentence explaining what is wrong."
                 ),
                 (
-                    "human", 
-                    "User prompt context: {prompt}\n\nTool used: {tool}\nRaw Output: {output}"
+                    "human",
+                    "User request: {prompt}\n\nTool: {tool}\nOutput (debug fields removed): {output}"
                 ),
             ])
             chain = validation_prompt | llm | StrOutputParser()
-            
-            # Truncate output to avoid massive context for a simple check
-            output_str = str(last_result.get("output", ""))[:2000]
             
             response = chain.invoke({
                 "prompt": state.get("prompt", ""),
@@ -236,7 +248,7 @@ def validator(state: RunState) -> RunState:
             
             print(f"[validator] Tool: {tool_name} | Eval: {response}")
             
-            # If the LLM doesn't explicitly return VALID, we treat it as an error
+            # If the LLM doesn't explicitly return VALID, treat it as an error
             if "VALID" not in response.upper() or len(response) > 10:
                 return {
                     **state,

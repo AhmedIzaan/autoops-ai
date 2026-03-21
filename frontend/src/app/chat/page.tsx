@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp, ArrowLeft, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import Link from "next/link";
 
@@ -246,6 +246,18 @@ export default function Home() {
                                   <div className="text-xs font-mono p-3 bg-black/40 rounded-xl overflow-x-auto border border-emerald-500/10 text-emerald-200/80 scrollbar-thin scrollbar-thumb-white/10">
                                     <pre>{JSON.stringify(result.output || result.error, null, 2)}</pre>
                                   </div>
+                                )}
+
+                                {/* Download button for report_generator */}
+                                {result.output?.download_url && (
+                                  <a
+                                    href={`http://localhost:8000${result.output.download_url}`}
+                                    download={result.output.filename}
+                                    className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 text-xs font-medium bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 rounded-lg transition-colors w-fit"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download Report (.md)
+                                  </a>
                                 )}
                               </motion.div>
                             )}

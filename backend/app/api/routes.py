@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_settings
@@ -141,4 +141,25 @@ async def upload_file(
         content_type=upload.content_type,
         path=str(dest_path),
         size=size,
+    )
+
+
+@router.get("/reports/{filename}", tags=["reports"])
+async def download_report(filename: str) -> FileResponse:
+    """Download a generated markdown report by filename."""
+    reports_dir = Path(settings.storage_dir).parent / "reports"
+    file_path = reports_dir / filename
+
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="report_not_found")
+
+    # Basic path traversal guard
+    if not file_path.resolve().is_relative_to(reports_dir.resolve()):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="text/markdown",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -19,8 +19,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        """Parse allowed_origins string into a list."""
-        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        """Parse allowed_origins string into a list. Defaults to ['*'] if empty."""
+        origins = [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        return origins if origins else ["*"]
 
     # ── SMTP / Email settings ──────────────────────────────────────────────
     smtp_host: str = Field(default="smtp.gmail.com", description="SMTP server hostname")

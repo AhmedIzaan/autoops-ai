@@ -1,43 +1,39 @@
-# ── Stage 1: build dependencies ──────────────────────────────────────────────
+# Build context: repo root (set Docker Root Directory to / in Render, Dockerfile Path to backend/Dockerfile)
+# ── Stage 1: install dependencies ────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install system deps needed by some packages (pypdf, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python requirements
+# requirements.txt lives at the repo root — copy it from there
 COPY requirements.txt ./
-RUN pip install --upgrade pip && \
+RUN pip install --upgrade pip --quiet && \
     pip install --no-cache-dir -r requirements.txt
 
 
-# ── Stage 2: runtime image ───────────────────────────────────────────────────
+# ── Stage 2: slim runtime image ───────────────────────────────────────────────
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install runtime system libs (libpq for asyncpg/PostgreSQL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
+# Copy installed packages from builder stage
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application source
-COPY . .
+# Copy only the backend source code
+COPY backend/ ./
 
-# Create storage directories (will be overridden by a persistent disk on Render)
+# Create storage directories (mount a Render Disk here for persistence)
 RUN mkdir -p storage/uploads storage/reports
 
-# Expose the port Render injects via $PORT (default 8000 for local)
 EXPOSE 8000
 
-# Run with Gunicorn + Uvicorn workers in production
-# Use --workers 2 — adjust based on Render plan RAM
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]

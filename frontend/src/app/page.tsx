@@ -142,17 +142,6 @@ export default function LandingPage() {
                     <Sparkles className="w-5 h-5 text-indigo-500" />
                     <span className="text-lg font-medium tracking-tight">AutoOps AI</span>
                 </div>
-                <div className="flex items-center space-x-4">
-                    <a href="https://github.com" target="_blank" rel="noreferrer" className="text-sm text-neutral-400 hover:text-white transition-colors hidden sm:block">
-                        View Source
-                    </a>
-                    <Link
-                        href="/chat"
-                        className="px-4 py-2 text-sm font-medium bg-white text-black hover:bg-neutral-200 transition-colors rounded-full"
-                    >
-                        Launch App
-                    </Link>
-                </div>
             </nav>
 
             <main className="pt-32 pb-24">

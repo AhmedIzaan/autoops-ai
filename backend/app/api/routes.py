@@ -13,7 +13,7 @@ from app.dependencies import get_settings
 from app.schemas import RunCreate, RunResult, FileUploadResponse
 from app.workflows.graph import run_workflow, app as graph_app
 from app.db.session import get_session
-from app.models import FileArtifact, Run
+from app.models import FileArtifact, Run, Task
 from app.config import settings
 
 router = APIRouter()
@@ -163,3 +163,43 @@ async def download_report(filename: str) -> FileResponse:
         filename=filename,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/tasks", tags=["tasks"])
+async def list_tasks(session: AsyncSession = Depends(get_session)) -> list[dict]:
+    """Return all tasks ordered by most recent first."""
+    from sqlalchemy import select, desc
+    result = await session.execute(select(Task).order_by(desc(Task.created_at)))
+    tasks = result.scalars().all()
+    return [
+        {
+            "task_id": t.id,
+            "title": t.title,
+            "description": t.description,
+            "owner": t.owner,
+            "priority": t.priority,
+            "status": t.status,
+            "source_run_id": t.source_run_id,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in tasks
+    ]
+
+
+@router.patch("/tasks/{task_id}/status", tags=["tasks"])
+async def update_task_status(
+    task_id: str,
+    status: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update the status of a task (todo | in_progress | done)."""
+    from sqlalchemy import select
+    result = await session.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="task_not_found")
+    if status not in {"todo", "in_progress", "done"}:
+        raise HTTPException(status_code=400, detail="invalid_status")
+    task.status = status
+    await session.commit()
+    return {"task_id": task_id, "status": task.status}

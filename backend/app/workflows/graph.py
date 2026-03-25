@@ -246,14 +246,33 @@ def tool_executor(state: RunState) -> RunState:
 
 
         elif tool_name == "task_creator":
+            # Build context from prior tool results for LLM description generation
+            prior_results = state.get("tool_results") or []
+            ctx_parts: list[str] = []
+            for prior in prior_results:
+                out = prior.get("output") or {}
+                t = prior.get("tool", "")
+                if t == "csv_analyzer" and isinstance(out, dict):
+                    insights = out.get("ai_insights") or []
+                    ctx_parts.extend(insights)
+                elif t == "report_generator" and isinstance(out, dict):
+                    ctx_parts.append(out.get("content", "")[:1000])
+                elif t == "pdf_summarizer" and isinstance(out, dict):
+                    ctx_parts.append(out.get("summary", "")[:800])
+            task_context = "\n".join(filter(None, ctx_parts)) or None
+
             result = {
                 "tool": tool_name,
                 "output": create_task(
                     title=args.get("title", state.get("prompt", "Task")),
-                    description=args.get("description"),
-                    owner=args.get("owner"),
+                    description=args.get("description") or None,
+                    owner=args.get("owner") or None,
+                    priority=args.get("priority", "medium"),
+                    source_run_id=state.get("run_id"),
+                    context=task_context,
                 ),
             }
+
         elif tool_name == "report_generator":
             # Dynamically build context from previous tool results
             title, summary, items, details = _build_report_context(args, state)

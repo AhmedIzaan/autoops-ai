@@ -217,7 +217,34 @@ def tool_executor(state: RunState) -> RunState:
                 raise ValueError("pdf_summarizer requires 'path'")
             result = {"tool": tool_name, "output": extract_text(path)}
         elif tool_name == "email_draft":
-            result = {"tool": tool_name, "output": draft_email(**{k: v for k, v in args.items() if k in {"subject", "body", "to"}})}
+            # Build context from prior tool results for LLM body generation
+            prior_results = state.get("tool_results") or []
+            context_parts: list[str] = []
+            for prior in prior_results:
+                out = prior.get("output") or {}
+                t = prior.get("tool", "")
+                if t == "report_generator" and isinstance(out, dict):
+                    context_parts.append(out.get("content", ""))
+                elif t == "csv_analyzer" and isinstance(out, dict):
+                    insights = out.get("ai_insights") or []
+                    if insights:
+                        context_parts.append("\n".join(f"- {i}" for i in insights))
+                elif t == "pdf_summarizer" and isinstance(out, dict):
+                    context_parts.append(out.get("summary", ""))
+            context = "\n\n".join(filter(None, context_parts)) or None
+
+            # If we have real context from prior tools, discard the planner's
+            # generic placeholder body and let the LLM write from actual content.
+            body_arg = None if context else (args.get("body") or None)
+
+            result = {"tool": tool_name, "output": draft_email(
+                subject=args.get("subject", "AutoOps Report"),
+                body=body_arg,
+                to=args.get("to") or None,
+                context=context,
+            )}
+
+
         elif tool_name == "task_creator":
             result = {
                 "tool": tool_name,
@@ -270,10 +297,22 @@ def validator(state: RunState) -> RunState:
 
     last_result = tool_results[-1]
     tool_name = last_result.get("tool", "unknown")
-    
+
     # Check if there's already a hard tool error
     if "error" in last_result:
         return state
+
+    # Special case: email_draft — if the email content is valid (subject + body present),
+    # treat it as success even if SMTP sending failed. SMTP errors are infra issues,
+    # not tool logic failures. The draft itself is the deliverable.
+    if tool_name == "email_draft":
+        output = last_result.get("output") or {}
+        if output.get("subject") and output.get("body"):
+            smtp_err = output.get("send_skipped_reason") or ""
+            if "SMTP error" in smtp_err:
+                print(f"[validator] email_draft: SMTP send failed but draft is valid — passing.")
+            return state   # always pass email_draft if content is present
+
 
     try:
         llm = _make_llm()

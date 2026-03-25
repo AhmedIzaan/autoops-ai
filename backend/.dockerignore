@@ -1,0 +1,14 @@
+# Don't copy these into the Docker image
+.env
+*.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+storage/
+.pytest_cache/
+.mypy_cache/
+.coverage

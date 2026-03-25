@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Sparkles, CheckCircle2, Circle, Loader2, ArrowRight, X, ChevronDown, ChevronUp, ArrowLeft, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -49,7 +50,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/runs/stream", {
+      const response = await fetch(`${API_BASE}/api/runs/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: currentPrompt, file_refs: fileRefs.map((f) => f.path) }),
@@ -99,7 +100,7 @@ export default function Home() {
     setUploading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:8000/api/files", {
+      const res = await fetch(`${API_BASE}/api/files`, {
         method: "POST",
         body: formData,
       });
@@ -251,7 +252,7 @@ export default function Home() {
                                 {/* Download button for report_generator */}
                                 {result.output?.download_url && (
                                   <a
-                                    href={`http://localhost:8000${result.output.download_url}`}
+                                    href={`${API_BASE}${result.output.download_url}`}
                                     download={result.output.filename}
                                     className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 text-xs font-medium bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 rounded-lg transition-colors w-fit"
                                   >

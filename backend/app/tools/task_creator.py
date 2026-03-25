@@ -8,8 +8,10 @@ from app.config import settings
 
 
 # Sync engine for tool use (tools run in thread pool, not async context)
-_sync_url = settings.db_url.replace("aiosqlite", "sqlite")
-_engine = create_engine(_sync_url, connect_args={"check_same_thread": False})
+# Convert async URL to sync: "sqlite+aiosqlite:///..." → "sqlite:///..."
+#                         or: "postgresql+asyncpg://..." → "postgresql://..."
+_sync_url = settings.db_url.replace("+aiosqlite", "").replace("+asyncpg", "")
+_engine = create_engine(_sync_url, connect_args={"check_same_thread": False} if "sqlite" in settings.db_url else {})
 
 
 def create_task(
